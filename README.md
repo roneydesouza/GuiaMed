@@ -1,0 +1,636 @@
+[app Guia Med 060326 1620.index.html](https://github.com/user-attachments/files/25804772/app.Guia.Med.060326.1620.index.html)
+
+<!DOCTYPE html>
+<html lang="pt-PT">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Guia Med Connect</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; }
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        .touch-target { min-height: 44px; min-width: 44px; }
+        
+        /* Estilos do Calendário de Fita Rolável */
+        #calendar-container {
+            overflow-x: auto;
+            cursor: grab;
+            user-select: none;
+            scroll-behavior: smooth;
+        }
+        #calendar-container:active { cursor: grabbing; }
+        
+        #calendar-ribbon {
+            display: flex;
+            gap: 0.75rem;
+            padding: 0.5rem 1.5rem;
+            width: max-content;
+        }
+
+        .calendar-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-width: 55px;
+            padding: 1rem 0;
+            border-radius: 1.25rem;
+            transition: all 0.2s;
+            border: 1px solid #e2e8f0;
+            background: white;
+        }
+        .calendar-item.selected {
+            background-color: #2563eb;
+            color: white;
+            border-color: #2563eb;
+            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.2);
+            transform: scale(1.05);
+        }
+
+        .autocomplete-suggestions {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 0.75rem;
+            margin-top: 0.5rem;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+            z-index: 100;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        .suggestion-item { padding: 0.75rem 1rem; cursor: pointer; border-bottom: 1px solid #f1f5f9; }
+        .suggestion-item:hover { background-color: #eff6ff; color: #2563eb; }
+
+        .int-btn.selected { background-color: #2563eb; color: white; border-color: #2563eb; }
+
+        /* Estilo Switch Custom */
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 40px;
+            height: 20px;
+        }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-color: #cbd5e1;
+            transition: .4s;
+            border-radius: 20px;
+        }
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 16px; width: 16px;
+            left: 2px; bottom: 2px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+        input:checked + .slider { background-color: #2563eb; }
+        input:checked + .slider:before { transform: translateX(20px); }
+    </style>
+</head>
+<body class="text-slate-800 antialiased selection:bg-blue-200">
+
+    <div id="time-conflict-toast" class="fixed top-5 left-1/2 -translate-x-1/2 bg-red-600 text-white px-6 py-3 rounded-2xl shadow-2xl font-bold hidden z-[1000] items-center gap-3">
+        <span>⚠️</span> Conflito de horário detectado!
+    </div>
+
+    <div class="max-w-md mx-auto bg-white min-h-screen shadow-2xl relative flex flex-col overflow-hidden pb-20">
+        
+        <!-- Cabeçalho com Calendário Rolável -->
+        <header class="bg-blue-50 pt-8 pb-6 rounded-b-3xl shadow-sm z-10">
+            <div class="px-6 flex justify-between items-center mb-4">
+                <div>
+                    <h1 class="text-2xl font-bold text-blue-900" id="current-month-display">...</h1>
+                    <p class="text-xs text-blue-600 font-medium">Controle de Medicação</p>
+                </div>
+                <div class="h-10 w-10 bg-white rounded-full flex items-center justify-center shadow-sm border border-blue-100">👤</div>
+            </div>
+
+            <!-- Fita do Calendário -->
+            <div id="calendar-container" class="hide-scrollbar">
+                <div id="calendar-ribbon">
+                    <!-- Gerado via JS -->
+                </div>
+            </div>
+        </header>
+
+        <!-- Conteúdo Principal -->
+        <main class="flex-1 overflow-y-auto p-6" id="main-content">
+            <section id="view-agenda" class="block">
+                <div id="stock-alerts-container" class="hidden mb-6">
+                    <h3 class="text-[10px] font-black text-red-500 uppercase tracking-widest mb-2 flex items-center gap-1">⚠️ Reposição Urgente</h3>
+                    <div id="stock-alerts-list" class="flex flex-col gap-2"></div>
+                </div>
+
+                <div class="mb-4">
+                    <h2 class="text-xl font-semibold text-slate-800">Sua Agenda</h2>
+                    <p class="text-sm text-slate-500" id="selected-date-label">Carregando...</p>
+                </div>
+                <div id="agenda-list" class="flex flex-col gap-4"></div>
+            </section>
+
+            <section id="view-inventory" class="hidden">
+                <div class="mb-4 flex justify-between items-start">
+                    <div>
+                        <h2 class="text-xl font-semibold text-slate-800">Inventário</h2>
+                        <p class="text-sm text-slate-500">Controle de estoque.</p>
+                    </div>
+                    <button onclick="openAddModal()" class="touch-target bg-blue-600 text-white rounded-full px-4 py-2 font-medium shadow-md">➕ Novo</button>
+                </div>
+                <div id="inventory-list" class="flex flex-col gap-3"></div>
+            </section>
+        </main>
+
+        <!-- Navegação Inferior Atualizada -->
+        <nav class="absolute bottom-0 w-full bg-white border-t border-slate-100 px-6 py-3 flex items-center z-20 pb-safe">
+            <div class="w-1/3 flex justify-start">
+                <button onclick="switchTab('inventory')" id="btn-inventory" class="tab-btn text-slate-400 flex flex-col items-center gap-1 touch-target p-2">
+                    <span class="text-2xl">💊</span><span class="text-xs font-medium">Estoque</span>
+                </button>
+            </div>
+            <div class="w-1/3 flex justify-center">
+                <button onclick="switchTab('agenda')" id="btn-agenda" class="tab-btn active text-blue-600 flex flex-col items-center gap-1 touch-target p-2">
+                    <span class="text-2xl">📅</span><span class="text-xs font-medium">Agenda</span>
+                </button>
+            </div>
+            <div class="w-1/3"></div> <!-- Espaço vazio para manter a simetria -->
+        </nav>
+
+        <!-- Modal -->
+        <div id="modal-add" class="fixed inset-0 bg-slate-900/50 z-50 hidden flex flex-col justify-end">
+            <div class="bg-white w-full max-w-md mx-auto rounded-t-3xl p-6 transform transition-transform translate-y-full overflow-y-auto max-h-[90vh]" id="modal-add-content">
+                <div class="flex justify-between items-center mb-6">
+                    <h2 class="text-xl font-bold text-slate-800">Novo Agendamento</h2>
+                    <button onclick="closeAddModal()" class="text-2xl text-slate-400">✖</button>
+                </div>
+                <form id="form-add-med" class="flex flex-col gap-4">
+                    <div class="relative">
+                        <label class="block text-[11px] font-bold text-slate-500 uppercase mb-1">Medicamento</label>
+                        <input type="text" id="med-name" autocomplete="off" required oninput="handleNameInput()" class="w-full border border-slate-300 rounded-xl p-3 focus:ring-2 focus:ring-blue-500 outline-none" placeholder="Ex: Paracetamol">
+                        <div id="autocomplete-list" class="autocomplete-suggestions hidden"></div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="relative">
+                            <input type="text" id="med-dose" required oninput="handleDoseInput()" onfocus="handleDoseInput()" class="w-full border border-slate-300 rounded-xl p-3 focus:ring-2 focus:ring-blue-500 outline-none" placeholder="Dose (Ex: 500mg)">
+                            <div id="dose-autocomplete-list" class="autocomplete-suggestions hidden"></div>
+                        </div>
+                        <select id="med-type" class="border border-slate-300 rounded-xl p-3 bg-white">
+                            <option value="💊">Comprimido</option>
+                            <option value="💧">Gotas</option>
+                            <option value="💉">Injetável</option>
+                        </select>
+                    </div>
+
+                    <!-- Novo Comando: Medicamento Contínuo -->
+                    <div class="flex items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-100">
+                        <div>
+                            <p class="text-sm font-bold text-slate-700">Medicamento Contínuo</p>
+                            <p class="text-[10px] text-slate-400">Repetir horários na agenda</p>
+                        </div>
+                        <label class="switch">
+                            <input type="checkbox" id="med-continuous" onchange="toggleContinuousView()">
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+
+                    <div class="bg-blue-50 p-4 rounded-xl">
+                        <label class="block text-[11px] font-bold text-blue-900 uppercase mb-2">Primeira Dose & Intervalo</label>
+                        <input type="time" id="med-time" required class="w-full border border-slate-300 rounded-xl p-3 mb-3">
+                        <div class="grid grid-cols-5 gap-2">
+                            <button type="button" onclick="setIntervalVal(4)" class="int-btn bg-white py-2 rounded-lg text-xs font-bold border border-slate-200 transition">4h</button>
+                            <button type="button" onclick="setIntervalVal(6)" class="int-btn bg-white py-2 rounded-lg text-xs font-bold border border-slate-200 transition">6h</button>
+                            <button type="button" onclick="setIntervalVal(8)" class="int-btn bg-white py-2 rounded-lg text-xs font-bold border border-slate-200 transition">8h</button>
+                            <button type="button" onclick="setIntervalVal(12)" class="int-btn bg-white py-2 rounded-lg text-xs font-bold border border-slate-200 transition">12h</button>
+                            <button type="button" onclick="setIntervalVal(24)" class="int-btn bg-white py-2 rounded-lg text-xs font-bold border border-slate-200 transition">24h</button>
+                        </div>
+                        <input type="hidden" id="med-interval" value="0">
+                    </div>
+                    
+                    <div id="stock-field-container">
+                        <label class="block text-[11px] font-bold text-slate-500 uppercase mb-1">Quantidade em Estoque</label>
+                        <input type="number" id="med-stock" required min="0" class="w-full border border-slate-300 rounded-xl p-3" placeholder="Adicione quantidade">
+                    </div>
+
+                    <button type="submit" class="w-full bg-blue-600 text-white rounded-xl py-4 font-bold text-lg shadow-lg">Salvar</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const monthNames = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+        const dayNames = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+        
+        // Catálogo expandido com medicamentos comuns e suas dosagens padrão
+        const DOSAGE_CATALOG = { 
+            'abafil': ['100mg', '200mg'],
+            'adolonta': ['50mg', '100mg'],
+            'aerius': ['5mg', '0.5mg/ml'],
+            'anador': ['500mg','1g'],
+            'alivium': ['100mg/ml', '400mg', '600mg'],
+            'amoxicilina': ['250mg', '500mg', '875mg'],
+            'amoxicilina + clavulanato': ['500mg+125mg', '875mg+125mg'],
+            'ansiolin': ['5mg', '10mg'],
+            'aspirina': ['100mg', '500mg'],
+            'atenolol': ['25mg', '50mg', '100mg'],
+            'atorvastatina': ['10mg', '20mg', '40mg', '80mg'],
+            'atrovent': ['0.25mg/ml', '20mcg'],
+            'ben-u-ron': ['500mg', '1g', '250mg'],
+            'bisoprolol': ['2.5mg', '5mg', '10mg'],
+            'brufen': ['200mg', '400mg', '600mg'],
+            'buscopan': ['10mg', '20mg/ml'],
+            'captopril': ['12.5mg', '25mg', '50mg'],
+            'claritine': ['10mg'],
+            'clonazepam': ['0.5mg', '2mg', '2.5mg/ml'],
+            'dafalgan': ['500mg', '1g'],
+            'daonil': ['5mg'],
+            'depakine': ['200mg', '500mg'],
+            'dexametasona': ['0.5mg', '1mg', '4mg'],
+            'diazepam': ['5mg', '10mg'],
+            'diclofenaco': ['50mg', '75mg', '100mg'],
+            'dipirona': ['500mg', '1g', '500mg/ml'],
+            'duloxetina': ['30mg', '60mg'],
+            'enalapril': ['5mg', '10mg', '20mg'],
+            'eszopiclona': ['2mg', '3mg'],
+            'fenobarbital': ['15mg', '50mg', '100mg'],
+            'fluoxetina': ['20mg'],
+            'furosemida': ['20mg', '40mg'],
+            'glifage': ['500mg', '850mg', '1g'],
+            'haloperidol': ['1mg', '5mg', '2mg/ml'],
+            'ibuprofeno': ['200mg', '400mg', '600mg'],
+            'insulina glargina': ['100UI/ml'],
+            'isordil': ['5mg', '10mg'],
+            'itraconaozol': ['100mg'],
+            'januvia': ['25mg', '50mg', '100mg'],
+            'lantus': ['100 U/ml'],
+            'levotiroxina': ['25mcg', '50mcg', '75mcg', '100mcg', '125mcg'],
+            'lexapro': ['10mg', '20mg'],
+            'lisinopril': ['5mg', '10mg', '20mg'],
+            'loratadina': ['10mg', '1mg/ml'],
+            'lorazepam': ['1mg', '2mg', '5mg'],
+            'losartan': ['25mg', '50mg', '100mg'],
+            'metformina': ['500mg', '850mg', '1000mg'],
+            'metoprolol': ['25mg', '50mg', '100mg'],
+            'nimesulida': ['100mg'],
+            'nolotil': ['575mg'],
+            'omeprazol': ['10mg', '20mg', '40mg'],
+            'oxocodona': ['10mg', '20mg'],
+            'pantoprazol': ['20mg', '40mg'],
+            'paracetamol': ['500mg', '750mg', '1g'],
+            'pregabalina': ['75mg', '150mg', '300mg'],
+            'prednisona': ['5mg', '20mg', '50mg'],
+            'quetiapina': ['25mg', '100mg', '200mg'],
+            'rivotril': ['0.5mg', '2mg', '2.5mg/ml'],
+            'rosuvastatina': ['5mg', '10mg', '20mg'],
+            'sertralina': ['25mg', '50mg', '100mg'],
+            'sinvastatina': ['10mg', '20mg', '40mg'],
+            'spironolactona': ['25mg', '100mg'],
+            'tadalafila': ['5mg', '20mg'],
+            'tramadol': ['50mg', '100mg'],
+            'valproato': ['250mg', '500mg'],
+            'valsartan': ['80mg', '160mg', '320mg'],
+            'venlafaxina': ['37.5mg', '75mg', '150mg'],
+            'victoza': ['6mg/ml'],
+            'warfarina': ['1mg', '2mg', '5mg'],
+            'xarelto': ['10mg', '15mg', '20mg'],
+            'zolpidem': ['5mg', '10mg'],
+            'zovirax': ['200mg', '400mg', '800mg']
+        };
+
+        let state = {
+            meds: JSON.parse(localStorage.getItem('medsafe_v12')) || [],
+            selectedDate: new Date().toISOString().split('T')[0]
+        };
+
+        const container = document.getElementById('calendar-container');
+        let isDown = false;
+        let startX;
+        let scrollLeft;
+
+        container.addEventListener('mousedown', (e) => {
+            isDown = true;
+            startX = e.pageX - container.offsetLeft;
+            scrollLeft = container.scrollLeft;
+        });
+        container.addEventListener('mouseleave', () => { isDown = false; });
+        container.addEventListener('mouseup', () => { isDown = false; });
+        container.addEventListener('mousemove', (e) => {
+            if (!isDown) return;
+            e.preventDefault();
+            const x = e.pageX - container.offsetLeft;
+            const walk = (x - startX) * 2;
+            container.scrollLeft = scrollLeft - walk;
+        });
+
+        function generateCalendar() {
+            const ribbon = document.getElementById('calendar-ribbon');
+            ribbon.innerHTML = '';
+            const today = new Date();
+            
+            for (let i = -7; i < 23; i++) {
+                const date = new Date();
+                date.setDate(today.getDate() + i);
+                const dateStr = date.toISOString().split('T')[0];
+                const isSelected = state.selectedDate === dateStr;
+
+                const item = document.createElement('div');
+                item.className = `calendar-item ${isSelected ? 'selected' : ''}`;
+                item.onclick = () => {
+                    state.selectedDate = dateStr;
+                    generateCalendar();
+                    renderAgenda();
+                };
+                item.innerHTML = `
+                    <span class="text-[10px] font-bold uppercase opacity-60">${dayNames[date.getDay()]}</span>
+                    <span class="text-lg font-bold">${date.getDate()}</span>
+                `;
+                ribbon.appendChild(item);
+
+                if (isSelected) {
+                    document.getElementById('current-month-display').innerText = monthNames[date.getMonth()];
+                    document.getElementById('selected-date-label').innerText = date.toLocaleDateString('pt-PT', { weekday: 'long', day: 'numeric', month: 'long' });
+                }
+            }
+        }
+
+        function renderAgenda() {
+            const list = document.getElementById('agenda-list');
+            list.innerHTML = '';
+            
+            const daily = state.meds.filter(m => m.date === state.selectedDate || m.continuous).sort((a,b) => a.time.localeCompare(b.time));
+            
+            if (daily.length === 0) {
+                list.innerHTML = `<div class="text-center py-10 opacity-30"><p>Sem medicação para este dia.</p></div>`;
+                return;
+            }
+
+            daily.forEach(med => {
+                const isTakenToday = med.continuous ? (med.takenDates && med.takenDates.includes(state.selectedDate)) : med.taken;
+
+                const card = document.createElement('div');
+                card.className = `p-4 rounded-2xl flex items-center justify-between border-2 transition-all ${isTakenToday ? 'bg-emerald-50 border-emerald-100 opacity-75' : 'bg-white border-slate-100 shadow-sm'}`;
+                card.innerHTML = `
+                    <div class="flex items-center gap-3">
+                        <div class="h-10 w-10 bg-blue-50 rounded-lg flex items-center justify-center text-xl">${med.type}</div>
+                        <div>
+                            <div class="flex items-center gap-1">
+                                <h4 class="font-bold text-sm ${isTakenToday ? 'line-through text-emerald-800' : 'text-slate-800'}">${med.name}</h4>
+                                ${med.continuous ? '<span class="text-[9px] bg-blue-100 text-blue-600 px-1 rounded">Contínuo</span>' : ''}
+                            </div>
+                            <p class="text-[10px] font-bold text-blue-500 uppercase">${med.time} • ${med.dose}</p>
+                        </div>
+                    </div>
+                    <button onclick="toggleTaken(${med.id})" class="h-8 w-8 rounded-full border-2 flex items-center justify-center transition-all ${isTakenToday ? 'bg-emerald-500 border-emerald-500 text-white' : 'border-slate-200 text-transparent'}">✓</button>
+                `;
+                list.appendChild(card);
+            });
+            checkStock();
+        }
+
+        function toggleTaken(id) {
+            const med = state.meds.find(m => m.id === id);
+            if (!med) return;
+            
+            const key = `${med.name.toLowerCase()}-${med.dose.toLowerCase()}`;
+            
+            if (med.continuous) {
+                if (!med.takenDates) med.takenDates = [];
+                const idx = med.takenDates.indexOf(state.selectedDate);
+                if (idx === -1) {
+                    med.takenDates.push(state.selectedDate);
+                    state.meds.filter(m => `${m.name.toLowerCase()}-${m.dose.toLowerCase()}` === key).forEach(m => m.stock--);
+                } else {
+                    med.takenDates.splice(idx, 1);
+                    state.meds.filter(m => `${m.name.toLowerCase()}-${m.dose.toLowerCase()}` === key).forEach(m => m.stock++);
+                }
+            } else {
+                if (!med.taken) {
+                    state.meds.filter(m => `${m.name.toLowerCase()}-${m.dose.toLowerCase()}` === key).forEach(m => m.stock--);
+                    med.taken = true;
+                } else {
+                    state.meds.filter(m => `${m.name.toLowerCase()}-${m.dose.toLowerCase()}` === key).forEach(m => m.stock++);
+                    med.taken = false;
+                }
+            }
+            save();
+        }
+
+        function toggleContinuousView() {
+            const isCont = document.getElementById('med-continuous').checked;
+            document.getElementById('med-stock').required = !isCont;
+        }
+
+        function save() {
+            localStorage.setItem('medsafe_v12', JSON.stringify(state.meds));
+            renderAgenda();
+            renderInventory();
+        }
+
+        function handleNameInput() {
+            const val = document.getElementById('med-name').value.toLowerCase();
+            const list = document.getElementById('autocomplete-list');
+            list.innerHTML = '';
+            if (val.length < 1) { list.classList.add('hidden'); return; }
+            
+            const matches = Object.keys(DOSAGE_CATALOG).filter(k => k.startsWith(val));
+            if (matches.length > 0) {
+                list.classList.remove('hidden');
+                matches.forEach(m => {
+                    const item = document.createElement('div');
+                    item.className = 'suggestion-item font-medium';
+                    item.innerText = m.charAt(0).toUpperCase() + m.slice(1);
+                    item.onclick = () => {
+                        document.getElementById('med-name').value = item.innerText;
+                        list.classList.add('hidden');
+                        // Aciona a lógica de dose após selecionar o nome
+                        handleDoseInput();
+                    };
+                    list.appendChild(item);
+                });
+            } else { list.classList.add('hidden'); }
+        }
+
+        function handleDoseInput() {
+            const medName = document.getElementById('med-name').value.toLowerCase();
+            const doseVal = document.getElementById('med-dose').value.toLowerCase();
+            const list = document.getElementById('dose-autocomplete-list');
+            list.innerHTML = '';
+
+            if (!DOSAGE_CATALOG[medName]) {
+                list.classList.add('hidden');
+                return;
+            }
+
+            const dosages = DOSAGE_CATALOG[medName];
+            // Filtra dosagens que começam com o que o usuário digitou (ou mostra todas se vazio)
+            const matches = dosages.filter(d => d.toLowerCase().startsWith(doseVal));
+
+            if (matches.length > 0) {
+                list.classList.remove('hidden');
+                matches.forEach(d => {
+                    const item = document.createElement('div');
+                    item.className = 'suggestion-item font-medium';
+                    item.innerText = d;
+                    item.onclick = () => {
+                        document.getElementById('med-dose').value = d;
+                        list.classList.add('hidden');
+                    };
+                    list.appendChild(item);
+                });
+            } else {
+                list.classList.add('hidden');
+            }
+        }
+
+        // Fecha sugestões ao clicar fora
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('#med-name') && !e.target.closest('#autocomplete-list')) {
+                document.getElementById('autocomplete-list').classList.add('hidden');
+            }
+            if (!e.target.closest('#med-dose') && !e.target.closest('#dose-autocomplete-list')) {
+                document.getElementById('dose-autocomplete-list').classList.add('hidden');
+            }
+        });
+
+        function setIntervalVal(h) {
+            document.getElementById('med-interval').value = h;
+            document.querySelectorAll('.int-btn').forEach(b => b.classList.remove('selected'));
+            event.target.classList.add('selected');
+        }
+
+        document.getElementById('form-add-med').onsubmit = (e) => {
+            e.preventDefault();
+            const name = document.getElementById('med-name').value;
+            const dose = document.getElementById('med-dose').value;
+            const time = document.getElementById('med-time').value;
+            const type = document.getElementById('med-type').value;
+            const interval = parseInt(document.getElementById('med-interval').value);
+            const continuous = document.getElementById('med-continuous').checked;
+            const stockInput = document.getElementById('med-stock').value;
+            const stock = stockInput === "" ? 999 : parseInt(stockInput);
+
+            let times = [time];
+            if (interval > 0 && interval < 24) {
+                let curr = time;
+                while(true) {
+                    let [h, m] = curr.split(':').map(Number);
+                    h += interval;
+                    if (h >= 24) break;
+                    curr = `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+                    times.push(curr);
+                }
+            }
+
+            const key = `${name.toLowerCase()}-${dose.toLowerCase()}`;
+            const existing = state.meds.find(m => `${m.name.toLowerCase()}-${m.dose.toLowerCase()}` === key);
+            let totalStock = (existing ? existing.stock : 0) + stock;
+
+            times.forEach(t => {
+                state.meds.push({ 
+                    id: Date.now() + Math.random(), 
+                    name, dose, type, time: t, 
+                    date: state.selectedDate, 
+                    taken: false, 
+                    continuous,
+                    takenDates: [],
+                    stock: totalStock 
+                });
+            });
+
+            state.meds.filter(m => `${m.name.toLowerCase()}-${m.dose.toLowerCase()}` === key).forEach(m => m.stock = totalStock);
+
+            save();
+            closeAddModal();
+            e.target.reset();
+            document.querySelectorAll('.int-btn').forEach(b => b.classList.remove('selected'));
+        };
+
+        function renderInventory() {
+            const list = document.getElementById('inventory-list');
+            list.innerHTML = '';
+            const grouped = {};
+            state.meds.forEach(m => {
+                const key = `${m.name.toLowerCase()}-${m.dose.toLowerCase()}`;
+                if (!grouped[key]) grouped[key] = { ...m };
+                else grouped[key].stock = Math.max(grouped[key].stock, m.stock);
+            });
+            Object.values(grouped).forEach(item => {
+                const card = document.createElement('div');
+                card.className = "bg-white p-4 rounded-2xl border border-slate-100 flex items-center justify-between";
+                card.innerHTML = `
+                    <div class="flex items-center gap-3">
+                        <div class="text-xl">${item.type}</div>
+                        <div>
+                            <p class="font-bold text-slate-800 text-sm">${item.name} ${item.continuous ? '<span class="text-[9px] text-blue-500 font-normal border border-blue-200 px-1 rounded ml-1">Contínuo</span>' : ''}</p>
+                            <p class="text-[10px] text-slate-400 font-bold uppercase">${item.dose} • Stock: ${item.stock}</p>
+                        </div>
+                    </div>
+                    <button onclick="removeGroup('${item.name}', '${item.dose}')" class="text-slate-300">🗑️</button>
+                `;
+                list.appendChild(card);
+            });
+        }
+
+        function removeGroup(name, dose) {
+            const key = `${name.toLowerCase()}-${dose.toLowerCase()}`;
+            state.meds = state.meds.filter(m => `${m.name.toLowerCase()}-${m.dose.toLowerCase()}` !== key);
+            save();
+        }
+
+        function checkStock() {
+            const container = document.getElementById('stock-alerts-container');
+            const list = document.getElementById('stock-alerts-list');
+            list.innerHTML = '';
+            const alerts = [...new Set(state.meds.filter(m => m.stock <= 2 && m.stock > -900).map(m => `${m.name} (${m.dose})`))];
+            if (alerts.length > 0) {
+                container.classList.remove('hidden');
+                alerts.forEach(a => {
+                    const d = document.createElement('div');
+                    d.className = 'bg-red-50 p-2 rounded-lg text-xs font-bold text-red-700 border border-red-100';
+                    d.innerText = `Baixo estoque: ${a}`;
+                    list.appendChild(d);
+                });
+            } else container.classList.add('hidden');
+        }
+
+        function openAddModal() {
+            document.getElementById('modal-add').classList.remove('hidden');
+            setTimeout(() => document.getElementById('modal-add-content').classList.remove('translate-y-full'), 10);
+        }
+        function closeAddModal() {
+            document.getElementById('modal-add-content').classList.add('translate-y-full');
+            setTimeout(() => document.getElementById('modal-add').classList.add('hidden'), 300);
+        }
+
+        function switchTab(tab) {
+            document.querySelectorAll('section').forEach(s => s.classList.add('hidden'));
+            document.getElementById(`view-${tab}`).classList.remove('hidden');
+            document.querySelectorAll('.tab-btn').forEach(b => {
+                b.classList.remove('text-blue-600', 'active');
+                b.classList.add('text-slate-400');
+            });
+            const targetBtn = document.getElementById(`btn-${tab}`);
+            if (targetBtn) {
+                targetBtn.classList.remove('text-slate-400');
+                targetBtn.classList.add('text-blue-600', 'active');
+            }
+            if(tab === 'inventory') renderInventory();
+        }
+
+        window.onload = () => { generateCalendar(); renderAgenda(); };
+    </script>
+</body>
+</html>
+
+
