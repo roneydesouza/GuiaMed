@@ -1,5 +1,3 @@
-[app Guia Med 060326 1620.index.html](https://github.com/user-attachments/files/25804772/app.Guia.Med.060326.1620.index.html)
-
 <!DOCTYPE html>
 <html lang="pt-PT">
 <head>
