@@ -1,4 +1,3 @@
-<!DOCTYPE html>
 <html lang="pt-PT">
 <head>
     <meta charset="UTF-8">
@@ -26,6 +25,7 @@
             gap: 0.75rem;
             padding: 0.5rem 1.5rem;
             width: max-content;
+            align-items: center;
         }
 
         .calendar-item {
@@ -46,6 +46,24 @@
             border-color: #2563eb;
             box-shadow: 0 4px 12px rgba(37, 99, 235, 0.2);
             transform: scale(1.05);
+        }
+        .calendar-item.is-today {
+            border: 2px solid #2563eb;
+            min-width: 65px;
+            padding: 1.2rem 0;
+            transform: scale(1.1);
+            position: relative;
+        }
+        .calendar-item.is-today::after {
+            content: "HOJE";
+            position: absolute;
+            top: -8px;
+            background: #2563eb;
+            color: white;
+            font-size: 7px;
+            font-weight: 900;
+            padding: 2px 5px;
+            border-radius: 4px;
         }
 
         .autocomplete-suggestions {
@@ -97,8 +115,8 @@
 </head>
 <body class="text-slate-800 antialiased selection:bg-blue-200">
 
-    <div id="time-conflict-toast" class="fixed top-5 left-1/2 -translate-x-1/2 bg-red-600 text-white px-6 py-3 rounded-2xl shadow-2xl font-bold hidden z-[1000] items-center gap-3">
-        <span>⚠️</span> Conflito de horário detectado!
+    <div id="toast-msg" class="fixed top-5 left-1/2 -translate-x-1/2 bg-red-600 text-white px-6 py-3 rounded-2xl shadow-2xl font-bold hidden z-[1000] items-center gap-3">
+        <span id="toast-icon">⚠️</span> <span id="toast-text">Erro</span>
     </div>
 
     <div class="max-w-md mx-auto bg-white min-h-screen shadow-2xl relative flex flex-col overflow-hidden pb-20">
@@ -107,9 +125,9 @@
             <div class="px-6 flex justify-between items-center mb-4">
                 <div>
                     <h1 class="text-2xl font-bold text-blue-900" id="current-month-display">...</h1>
-                    <p class="text-xs text-blue-600 font-medium">Controle de Medicação do Roney</p>
+                    <p class="text-xs text-blue-600 font-medium">Controle de Medicação do Roney <span id="admin-badge" class="hidden ml-2 bg-black text-white px-1 rounded">ADMIN</span></p>
                 </div>
-                <div class="h-10 w-10 bg-white rounded-full flex items-center justify-center shadow-sm border border-blue-100">👤</div>
+                <button onclick="requestAdminAccess()" class="h-10 w-10 bg-white rounded-full flex items-center justify-center shadow-sm border border-blue-100 touch-target">👤</button>
             </div>
 
             <div id="calendar-container" class="hide-scrollbar">
@@ -189,7 +207,7 @@
             </div>
         </nav>
 
-        <!-- Alerta de Interação Medicamentosa -->
+        <!-- Modais e Alertas -->
         <div id="interaction-warning" class="fixed inset-0 bg-slate-900/80 z-[100] hidden flex items-center justify-center p-6">
             <div class="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl text-center">
                 <div class="w-16 h-16 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4 text-3xl">⚠️</div>
@@ -232,7 +250,7 @@
                             <p class="text-[10px] text-slate-400">Repetir horários na agenda</p>
                         </div>
                         <label class="switch">
-                            <input type="checkbox" id="med-continuous" onchange="toggleContinuousView()">
+                            <input type="checkbox" id="med-continuous">
                             <span class="slider"></span>
                         </label>
                     </div>
@@ -295,18 +313,10 @@
             'zolpidem': ['5mg', '10mg'], 'zovirax': ['200mg', '400mg', '800mg']
         };
 
-        const INTERACTIONS_DB = [
-            { meds: ['aspirina', 'ibuprofeno'], risk: 'Risco aumentado de sangramento gástrico e lesão renal.' },
-            { meds: ['varfarina', 'aspirina'], risk: 'Risco grave de hemorragia interna.' },
-            { meds: ['clonazepam', 'diazepam'], risk: 'Aumento excessivo de sedação e risco de depressão respiratória.' },
-            { meds: ['glifage', 'metformina'], risk: 'Dose duplicada da mesma substância ativa. Risco de acidose lática.' },
-            { meds: ['omeprazol', 'pantoprazol'], risk: 'Uso redundante de inibidores da bomba de prótons.' },
-            { meds: ['fluoxetina', 'tramadol'], risk: 'Risco de síndrome serotoninérgica (tremores, confusão, febre).' }
-        ];
-
         let state = {
-            meds: JSON.parse(localStorage.getItem('medsafe_v14')) || [],
-            selectedDate: new Date().toISOString().split('T')[0]
+            meds: JSON.parse(localStorage.getItem('medsafe_v15')) || [],
+            selectedDate: new Date().toISOString().split('T')[0],
+            isAdmin: false
         };
 
         const container = document.getElementById('calendar-container');
@@ -317,24 +327,69 @@
         container.addEventListener('mouseup', () => { isDown = false; });
         container.addEventListener('mousemove', (e) => { if (!isDown) return; e.preventDefault(); const x = e.pageX - container.offsetLeft; const walk = (x - startX) * 2; container.scrollLeft = scrollLeft - walk; });
 
+        function showToast(text, icon = '⚠️') {
+            const toast = document.getElementById('toast-msg');
+            document.getElementById('toast-text').innerText = text;
+            document.getElementById('toast-icon').innerText = icon;
+            toast.classList.remove('hidden'); toast.classList.add('flex');
+            setTimeout(() => { toast.classList.add('hidden'); toast.classList.remove('flex'); }, 3000);
+        }
+
+        // ATUALIZAÇÃO: Login de Admin com Senha
+        function requestAdminAccess() {
+            if(state.isAdmin) {
+                state.isAdmin = false;
+                document.getElementById('admin-badge').classList.add('hidden');
+                showToast('Logout realizado', '👋');
+                renderInventory();
+                return;
+            }
+            const pass = prompt("Digite a senha de administrador:");
+            if(pass === "admin123") {
+                state.isAdmin = true;
+                document.getElementById('admin-badge').classList.remove('hidden');
+                showToast('Acesso administrador liberado', '🔐');
+                renderInventory();
+            } else if (pass !== null) {
+                showToast('Senha incorreta');
+            }
+        }
+
         function generateCalendar() {
             const ribbon = document.getElementById('calendar-ribbon');
             ribbon.innerHTML = '';
             const today = new Date();
+            const todayStr = today.toISOString().split('T')[0];
+            
             for (let i = -7; i < 23; i++) {
                 const date = new Date();
                 date.setDate(today.getDate() + i);
                 const dateStr = date.toISOString().split('T')[0];
                 const isSelected = state.selectedDate === dateStr;
+                const isToday = dateStr === todayStr;
+                
                 const item = document.createElement('div');
-                item.className = `calendar-item ${isSelected ? 'selected' : ''}`;
-                item.onclick = () => { state.selectedDate = dateStr; generateCalendar(); renderAgenda(); if(document.getElementById('view-history').offsetParent) renderHistory(); };
+                item.className = `calendar-item ${isSelected ? 'selected' : ''} ${isToday ? 'is-today' : ''}`;
+                item.onclick = () => { 
+                    state.selectedDate = dateStr; 
+                    generateCalendar(); 
+                    renderAgenda(); 
+                };
                 item.innerHTML = `<span class="text-[10px] font-bold uppercase opacity-60">${dayNames[date.getDay()]}</span><span class="text-lg font-bold">${date.getDate()}</span>`;
                 ribbon.appendChild(item);
+                
                 if (isSelected) {
                     document.getElementById('current-month-display').innerText = monthNames[date.getMonth()];
                     document.getElementById('selected-date-label').innerText = date.toLocaleDateString('pt-PT', { weekday: 'long', day: 'numeric', month: 'long' });
                 }
+            }
+        }
+
+        function scrollToToday() {
+            const todayEl = document.querySelector('.is-today');
+            if(todayEl) {
+                const scrollPos = todayEl.offsetLeft - (container.offsetWidth / 2) + (todayEl.offsetWidth / 2);
+                container.scrollLeft = scrollPos;
             }
         }
 
@@ -364,13 +419,11 @@
                                 ${med.continuous ? '<span class="text-[9px] bg-blue-100 text-blue-600 px-1 rounded">Contínuo</span>' : ''}
                             </div>
                             <p class="text-[10px] font-bold text-blue-500 uppercase">${med.time} • ${med.dose}</p>
-                            ${outOfStock && !isTakenToday ? '<p class="text-[9px] text-red-500 font-bold uppercase mt-1">Sem estoque</p>' : ''}
                         </div>
                     </div>
                     <button 
                         onclick="${outOfStock && !isTakenToday ? '' : `toggleTaken(${med.id})`}" 
                         class="h-8 w-8 rounded-full border-2 flex items-center justify-center transition-all ${isTakenToday ? 'bg-emerald-500 border-emerald-500 text-white' : (outOfStock ? 'border-slate-100 bg-slate-50 cursor-not-allowed opacity-30' : 'border-slate-200 text-transparent')}"
-                        ${outOfStock && !isTakenToday ? 'disabled' : ''}
                     >✓</button>
                 `;
                 list.appendChild(card);
@@ -379,40 +432,125 @@
         }
 
         function toggleTaken(id) {
+            const today = new Date().toISOString().split('T')[0];
+            if (state.selectedDate > today) { showToast('Não é possível marcar horários futuros'); return; }
+
             const med = state.meds.find(m => m.id === id);
             if (!med) return;
             const key = `${med.name.toLowerCase()}-${med.dose.toLowerCase()}`;
-            const now = new Date();
-            const timestamp = `${now.toLocaleDateString('pt-PT')} às ${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}`;
+            const timestamp = new Date().toLocaleString('pt-PT');
 
             if (med.continuous) {
                 if (!med.takenDates) med.takenDates = [];
-                const existingIdx = med.takenDates.findIndex(d => d.date === state.selectedDate);
-                
-                if (existingIdx === -1) {
+                const idx = med.takenDates.findIndex(d => d.date === state.selectedDate);
+                if (idx === -1) {
                     med.takenDates.push({ date: state.selectedDate, log: timestamp });
                     state.meds.filter(m => `${m.name.toLowerCase()}-${m.dose.toLowerCase()}` === key).forEach(m => m.stock--);
                 } else {
-                    med.takenDates.splice(existingIdx, 1);
+                    med.takenDates.splice(idx, 1);
                     state.meds.filter(m => `${m.name.toLowerCase()}-${m.dose.toLowerCase()}` === key).forEach(m => m.stock++);
                 }
             } else {
                 if (!med.taken) {
-                    med.taken = true;
-                    med.takenAt = timestamp;
+                    med.taken = true; med.takenAt = timestamp;
                     state.meds.filter(m => `${m.name.toLowerCase()}-${m.dose.toLowerCase()}` === key).forEach(m => m.stock--);
                 } else {
-                    med.taken = false;
-                    med.takenAt = null;
+                    med.taken = false; med.takenAt = null;
                     state.meds.filter(m => `${m.name.toLowerCase()}-${m.dose.toLowerCase()}` === key).forEach(m => m.stock++);
                 }
             }
             save();
         }
 
-        function toggleContinuousView() { const isCont = document.getElementById('med-continuous').checked; document.getElementById('med-stock').required = !isCont; }
-        function save() { localStorage.setItem('medsafe_v14', JSON.stringify(state.meds)); renderAgenda(); renderInventory(); if(document.getElementById('view-history').offsetParent) renderHistory(); }
+        function save() { localStorage.setItem('medsafe_v15', JSON.stringify(state.meds)); renderAgenda(); renderInventory(); }
 
+        // ATUALIZAÇÃO: Botão Agenda volta ao dia atual (Home Page)
+        function switchTab(tab) {
+            if (tab === 'agenda') {
+                state.selectedDate = new Date().toISOString().split('T')[0];
+                generateCalendar();
+                scrollToToday();
+            }
+
+            document.querySelectorAll('section').forEach(s => s.classList.add('hidden'));
+            document.getElementById(`view-${tab}`).classList.remove('hidden');
+            document.querySelectorAll('.tab-btn').forEach(b => { 
+                b.classList.remove('text-blue-600', 'active'); 
+                b.classList.add('text-slate-400'); 
+            });
+            const targetBtn = document.getElementById(`btn-${tab}`);
+            if (targetBtn) { 
+                targetBtn.classList.remove('text-slate-400'); 
+                targetBtn.classList.add('text-blue-600', 'active'); 
+            }
+            if(tab === 'inventory') renderInventory();
+            if(tab === 'history') renderHistory();
+            if(tab === 'agenda') renderAgenda();
+        }
+
+        // CORREÇÃO: Função de Histórico
+        function renderHistory() {
+            const consumptionList = document.getElementById('consumption-report-list');
+            const purchaseList = document.getElementById('purchase-report-list');
+            consumptionList.innerHTML = '';
+            purchaseList.innerHTML = '';
+
+            // Renderiza Consumo
+            const logs = [];
+            state.meds.forEach(m => {
+                if (m.continuous && m.takenDates) {
+                    m.takenDates.forEach(td => logs.push({ name: m.name, dose: m.dose, log: td.log }));
+                } else if (m.taken && m.takenAt) {
+                    logs.push({ name: m.name, dose: m.dose, log: m.takenAt });
+                }
+            });
+
+            if (logs.length === 0) {
+                consumptionList.innerHTML = '<p class="text-center text-slate-400 text-xs py-4">Nenhum registro encontrado.</p>';
+            } else {
+                logs.sort((a,b) => b.log.localeCompare(a.log)).forEach(l => {
+                    const item = document.createElement('div');
+                    item.className = "bg-white p-3 rounded-xl border border-slate-100 flex justify-between items-center";
+                    item.innerHTML = `<div><p class="font-bold text-xs">${l.name}</p><p class="text-[9px] text-slate-400">${l.dose}</p></div><p class="text-[9px] font-bold text-blue-600">${l.log}</p>`;
+                    consumptionList.appendChild(item);
+                });
+            }
+
+            // Renderiza Compras
+            const lowStock = state.meds.filter(m => m.stock <= 5);
+            const uniqueLowStock = [];
+            const keys = new Set();
+            lowStock.forEach(m => {
+                const key = `${m.name}-${m.dose}`;
+                if(!keys.has(key)) { uniqueLowStock.push(m); keys.add(key); }
+            });
+
+            if (uniqueLowStock.length === 0) {
+                purchaseList.innerHTML = '<p class="text-center text-slate-400 text-xs py-4">Estoque em dia!</p>';
+            } else {
+                uniqueLowStock.forEach(m => {
+                    const item = document.createElement('div');
+                    item.className = "bg-white p-3 rounded-xl border border-slate-100 flex justify-between items-center";
+                    item.innerHTML = `<div><p class="font-bold text-xs">${m.name}</p><p class="text-[9px] text-slate-400">${m.dose}</p></div><div class="text-right"><p class="text-[9px] text-orange-600 font-bold">Estoque: ${m.stock}</p></div>`;
+                    purchaseList.appendChild(item);
+                });
+            }
+        }
+
+        function switchHistorySubTab(tab) {
+            document.getElementById('history-content-consumption').classList.add('hidden');
+            document.getElementById('history-content-purchase').classList.add('hidden');
+            document.getElementById('sub-tab-consumption').classList.remove('bg-white', 'shadow-sm', 'text-blue-600');
+            document.getElementById('sub-tab-consumption').classList.add('text-slate-500');
+            document.getElementById('sub-tab-purchase').classList.remove('bg-white', 'shadow-sm', 'text-blue-600');
+            document.getElementById('sub-tab-purchase').classList.add('text-slate-500');
+
+            document.getElementById(`history-content-${tab}`).classList.remove('hidden');
+            document.getElementById(`sub-tab-${tab}`).classList.add('bg-white', 'shadow-sm', 'text-blue-600');
+            document.getElementById(`sub-tab-${tab}`).classList.remove('text-slate-500');
+        }
+
+        // Funções Auxiliares (Preenchimento, Modal, etc)
         function handleNameInput() {
             const val = document.getElementById('med-name').value.toLowerCase();
             const list = document.getElementById('autocomplete-list');
@@ -448,12 +586,11 @@
             } else list.classList.add('hidden');
         }
 
-        document.addEventListener('click', (e) => {
-            if (!e.target.closest('#med-name') && !e.target.closest('#autocomplete-list')) document.getElementById('autocomplete-list').classList.add('hidden');
-            if (!e.target.closest('#med-dose') && !e.target.closest('#dose-autocomplete-list')) document.getElementById('dose-autocomplete-list').classList.add('hidden');
-        });
-
-        function setIntervalVal(h) { document.getElementById('med-interval').value = h; document.querySelectorAll('.int-btn').forEach(b => b.classList.remove('selected')); event.target.classList.add('selected'); }
+        function setIntervalVal(h) { 
+            document.getElementById('med-interval').value = h; 
+            document.querySelectorAll('.int-btn').forEach(b => b.classList.remove('selected')); 
+            event.target.classList.add('selected'); 
+        }
 
         document.getElementById('form-add-med').onsubmit = (e) => {
             e.preventDefault();
@@ -463,43 +600,12 @@
             const type = document.getElementById('med-type').value;
             const interval = parseInt(document.getElementById('med-interval').value);
             const continuous = document.getElementById('med-continuous').checked;
-            const stockInput = document.getElementById('med-stock').value;
-            const stock = stockInput === "" ? 999 : parseInt(stockInput);
-            const startDateInput = document.getElementById('med-start-date').value;
-            const startDate = startDateInput === "" ? state.selectedDate : startDateInput;
-
-            // Verificar interações antes de salvar
-            const interaction = checkInteractions(name);
-            if (interaction) {
-                document.getElementById('interaction-message').innerText = `O medicamento "${name}" pode interagir com "${interaction.otherMed}" já cadastrado. \n\nEfeito: ${interaction.risk}`;
-                document.getElementById('interaction-warning').classList.remove('hidden');
-                
-                document.getElementById('confirm-interaction').onclick = () => {
-                    document.getElementById('interaction-warning').classList.add('hidden');
-                    processSaving(name, dose, time, type, interval, continuous, stock, startDate);
-                    e.target.reset();
-                };
-                return;
-            }
+            const stock = parseInt(document.getElementById('med-stock').value || 999);
+            const startDate = document.getElementById('med-start-date').value || state.selectedDate;
 
             processSaving(name, dose, time, type, interval, continuous, stock, startDate);
             e.target.reset();
         };
-
-        function checkInteractions(newName) {
-            const currentMedNames = [...new Set(state.meds.map(m => m.name.toLowerCase()))];
-            const nameLower = newName.toLowerCase();
-
-            for (const entry of INTERACTIONS_DB) {
-                if (entry.meds.includes(nameLower)) {
-                    const otherMed = entry.meds.find(m => m !== nameLower);
-                    if (currentMedNames.includes(otherMed)) {
-                        return { otherMed: otherMed.charAt(0).toUpperCase() + otherMed.slice(1), risk: entry.risk };
-                    }
-                }
-            }
-            return null;
-        }
 
         function processSaving(name, dose, time, type, interval, continuous, stock, startDate) {
             let times = [time];
@@ -507,8 +613,7 @@
                 let curr = time; 
                 while(true) { 
                     let [h, m] = curr.split(':').map(Number); 
-                    h += interval; 
-                    if (h >= 24) break; 
+                    h += interval; if (h >= 24) break; 
                     curr = `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`; 
                     times.push(curr); 
                 } 
@@ -522,15 +627,12 @@
                     id: Date.now() + Math.random(), 
                     name, dose, type, time: t, 
                     date: startDate, 
-                    taken: false, 
-                    continuous, 
-                    takenDates: [], 
-                    stock: totalStock 
+                    taken: false, continuous, 
+                    takenDates: [], stock: totalStock 
                 }); 
             });
             state.meds.filter(m => `${m.name.toLowerCase()}-${m.dose.toLowerCase()}` === key).forEach(m => m.stock = totalStock);
-            
-            save(); closeAddModal(); document.querySelectorAll('.int-btn').forEach(b => b.classList.remove('selected'));
+            save(); closeAddModal();
         }
 
         function renderInventory() {
@@ -539,79 +641,37 @@
             Object.values(grouped).forEach(item => {
                 const card = document.createElement('div');
                 card.className = "bg-white p-4 rounded-2xl border border-slate-100 flex items-center justify-between";
-                card.innerHTML = `<div class="flex items-center gap-3"><div class="text-xl">${item.type}</div><div><p class="font-bold text-slate-800 text-sm">${item.name} ${item.continuous ? '<span class="text-[9px] text-blue-500 font-normal border border-blue-200 px-1 rounded ml-1">Contínuo</span>' : ''}</p><p class="text-[10px] text-slate-400 font-bold uppercase">${item.dose} • Stock: ${item.stock}</p></div></div><button onclick="removeGroup('${item.name}', '${item.dose}')" class="text-slate-300">🗑️</button>`;
+                card.innerHTML = `
+                    <div class="flex items-center gap-3">
+                        <div class="text-xl">${item.type}</div>
+                        <div>
+                            <p class="font-bold text-slate-800 text-sm">${item.name}</p>
+                            <p class="text-[10px] text-slate-400 font-bold uppercase">${item.dose} • Stock: ${item.stock}</p>
+                        </div>
+                    </div>
+                    <button onclick="removeGroup('${item.name}', '${item.dose}')" class="text-slate-300 hover:text-red-500 transition-colors">🗑️</button>`;
                 list.appendChild(card);
             });
         }
 
-        function removeGroup(name, dose) { const key = `${name.toLowerCase()}-${dose.toLowerCase()}`; state.meds = state.meds.filter(m => `${m.name.toLowerCase()}-${m.dose.toLowerCase()}` !== key); save(); }
+        function removeGroup(name, dose) { 
+            if(!state.isAdmin && !confirm(`Deseja remover ${name}?`)) return;
+            const key = `${name.toLowerCase()}-${dose.toLowerCase()}`; 
+            state.meds = state.meds.filter(m => `${m.name.toLowerCase()}-${m.dose.toLowerCase()}` !== key); 
+            save(); 
+        }
 
         function checkStock() {
             const container = document.getElementById('stock-alerts-container'), list = document.getElementById('stock-alerts-list');
             list.innerHTML = '';
-            const alerts = [...new Set(state.meds.filter(m => m.stock <= 2 && m.stock > -900).map(m => `${m.name} (${m.dose})`))];
-            if (alerts.length > 0) { container.classList.remove('hidden'); alerts.forEach(a => { const d = document.createElement('div'); d.className = 'bg-red-50 p-2 rounded-lg text-xs font-bold text-red-700 border border-red-100'; d.innerText = `Baixo estoque: ${a}`; list.appendChild(d); }); } else container.classList.add('hidden');
-        }
-
-        function switchHistorySubTab(sub) {
-            document.getElementById('history-content-consumption').className = sub === 'consumption' ? 'block' : 'hidden';
-            document.getElementById('history-content-purchase').className = sub === 'purchase' ? 'block' : 'hidden';
-            const btnCons = document.getElementById('sub-tab-consumption');
-            const btnPurch = document.getElementById('sub-tab-purchase');
-            if(sub === 'consumption') {
-                btnCons.className = "flex-1 py-2 text-xs font-bold rounded-lg bg-white shadow-sm text-blue-600 transition-all";
-                btnPurch.className = "flex-1 py-2 text-xs font-bold rounded-lg text-slate-500 transition-all";
-            } else {
-                btnPurch.className = "flex-1 py-2 text-xs font-bold rounded-lg bg-white shadow-sm text-orange-600 transition-all";
-                btnCons.className = "flex-1 py-2 text-xs font-bold rounded-lg text-slate-500 transition-all";
-            }
-            renderHistory();
-        }
-
-        function renderHistory() {
-            const consList = document.getElementById('consumption-report-list');
-            consList.innerHTML = '';
-            let historyData = [];
-            state.meds.forEach(m => {
-                if(m.continuous && m.takenDates) {
-                    m.takenDates.forEach(td => { historyData.push({ ...m, consumedAt: td.log, scheduledDate: td.date }); });
-                } else if(!m.continuous && m.taken) {
-                    historyData.push({ ...m, consumedAt: m.takenAt, scheduledDate: m.date });
-                }
-            });
-            historyData.sort((a,b) => (b.consumedAt || "").localeCompare(a.consumedAt || ""));
-
-            if(historyData.length === 0) {
-                consList.innerHTML = `<div class="text-center py-6 border-2 border-dashed border-slate-100 rounded-xl text-slate-400 text-xs">Nenhum consumo registrado ainda.</div>`;
-            } else {
-                historyData.forEach(m => {
-                    const item = document.createElement('div');
-                    item.className = "flex items-center justify-between p-3 bg-white border border-slate-100 rounded-xl shadow-sm";
-                    item.innerHTML = `<div class="flex items-center gap-3"><span class="text-lg">${m.type}</span><div><p class="text-sm font-bold text-slate-800">${m.name}</p><p class="text-[9px] text-emerald-600 font-bold uppercase">Consumido em: ${m.consumedAt || 'N/A'}</p></div></div><span class="text-[9px] bg-slate-100 px-2 py-1 rounded-full font-bold text-slate-500">${m.dose}</span>`;
-                    consList.appendChild(item);
-                });
-            }
-
-            const purchList = document.getElementById('purchase-report-list');
-            purchList.innerHTML = '';
-            const grouped = {};
-            state.meds.forEach(m => {
-                const key = `${m.name.toLowerCase()}-${m.dose.toLowerCase()}`;
-                if (!grouped[key]) grouped[key] = { ...m };
-                else grouped[key].stock = Math.max(grouped[key].stock, m.stock);
-            });
-            const lowStock = Object.values(grouped).filter(item => item.stock <= 5 && item.stock > -900);
-
-            if(lowStock.length === 0) {
-                purchList.innerHTML = `<div class="text-center py-6 border-2 border-dashed border-slate-100 rounded-xl text-slate-400 text-xs">Todos os estoques estão em dia.</div>`;
-            } else {
-                lowStock.forEach(item => {
-                    const card = document.createElement('div');
-                    card.className = "flex items-center justify-between p-4 bg-white border-l-4 border-orange-500 rounded-xl shadow-sm";
-                    card.innerHTML = `<div><p class="text-sm font-bold text-slate-800">${item.name} (${item.dose})</p><p class="text-xs text-red-500 font-bold">Estoque atual: ${item.stock}</p></div><button class="bg-orange-100 text-orange-600 px-3 py-1 rounded-lg text-[10px] font-black uppercase">Comprar</button>`;
-                    purchList.appendChild(card);
-                });
-            }
+            const alerts = [...new Set(state.meds.filter(m => m.stock <= 2).map(m => `${m.name} (${m.dose})`))];
+            if (alerts.length > 0) { 
+                container.classList.remove('hidden'); 
+                alerts.forEach(a => { 
+                    const d = document.createElement('div'); d.className = 'bg-red-50 p-2 rounded-lg text-xs font-bold text-red-700 border border-red-100'; 
+                    d.innerText = `Baixo estoque: ${a}`; list.appendChild(d); 
+                }); 
+            } else container.classList.add('hidden');
         }
 
         function openAddModal() { 
@@ -621,18 +681,11 @@
         }
         function closeAddModal() { document.getElementById('modal-add-content').classList.add('translate-y-full'); setTimeout(() => document.getElementById('modal-add').classList.add('hidden'), 300); }
 
-        function switchTab(tab) {
-            document.querySelectorAll('section').forEach(s => s.classList.add('hidden'));
-            document.getElementById(`view-${tab}`).classList.remove('hidden');
-            document.querySelectorAll('.tab-btn').forEach(b => { b.classList.remove('text-blue-600', 'active'); b.classList.add('text-slate-400'); });
-            const targetBtn = document.getElementById(`btn-${tab}`);
-            if (targetBtn) { targetBtn.classList.remove('text-slate-400'); targetBtn.classList.add('text-blue-600', 'active'); }
-            if(tab === 'inventory') renderInventory();
-            if(tab === 'history') renderHistory();
-            if(tab === 'agenda') renderAgenda();
-        }
-
-        window.onload = () => { generateCalendar(); renderAgenda(); };
+        window.onload = () => { 
+            generateCalendar(); 
+            renderAgenda(); 
+            scrollToToday();
+        };
     </script>
 </body>
 </html>
