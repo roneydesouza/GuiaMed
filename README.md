@@ -37,11 +37,11 @@
             padding: 1rem 0;
             border-radius: 1.25rem;
             transition: all 0.2s;
-            border: 1px solid #e2e8f0;
-            background: white;
+            border: 1px solid #7283fb;
+            background: #2fdfa8;
         }
         .calendar-item.selected {
-            background-color: #2563eb;
+            background-color: #c4f1e3;
             color: white;
             border-color: #2563eb;
             box-shadow: 0 4px 12px rgba(37, 99, 235, 0.2);
@@ -83,7 +83,7 @@
         .suggestion-item { padding: 0.75rem 1rem; cursor: pointer; border-bottom: 1px solid #f1f5f9; }
         .suggestion-item:hover { background-color: #eff6ff; color: #2563eb; }
 
-        .int-btn.selected { background-color: #2563eb; color: white; border-color: #2563eb; }
+        .int-btn.selected { background-color: #2563eb !important; color: white !important; border-color: #2563eb !important; }
 
         .switch {
             position: relative;
@@ -111,6 +111,18 @@
         }
         input:checked + .slider { background-color: #2563eb; }
         input:checked + .slider:before { transform: translateX(20px); }
+
+        @media print {
+            body { background: white; }
+            nav, header, button, .switch, #modal-add, #interaction-warning { display: none !important; }
+            .max-w-md { max-width: 100% !important; box-shadow: none !important; }
+            #main-content { padding: 0 !important; }
+            #view-history { display: block !important; }
+            #history-content-consumption, #history-content-purchase { display: block !important; }
+            .print-only { display: block !important; }
+            .no-print { display: none !important; }
+        }
+        .print-only { display: none; }
     </style>
 </head>
 <body class="text-slate-800 antialiased selection:bg-blue-200">
@@ -121,11 +133,11 @@
 
     <div class="max-w-md mx-auto bg-white min-h-screen shadow-2xl relative flex flex-col overflow-hidden pb-20">
         
-        <header class="bg-blue-50 pt-8 pb-6 rounded-b-3xl shadow-sm z-10">
+        <header class="bg-blue-50 pt-8 pb-6 rounded-b-3xl shadow-sm z-10 no-print">
             <div class="px-6 flex justify-between items-center mb-4">
                 <div>
                     <h1 class="text-2xl font-bold text-blue-900" id="current-month-display">...</h1>
-                    <p class="text-xs text-blue-600 font-medium">Controle de Medicação do Roney <span id="admin-badge" class="hidden ml-2 bg-black text-white px-1 rounded">ADMIN</span></p>
+                    <p class="text-xs text-blue-600 font-medium">GUIA MED controle de medicação <span id="admin-badge" class="hidden ml-2 bg-black text-white px-1 rounded uppercase">ADMIN</span></p>
                 </div>
                 <button onclick="requestAdminAccess()" class="h-10 w-10 bg-white rounded-full flex items-center justify-center shadow-sm border border-blue-100 touch-target">👤</button>
             </div>
@@ -136,7 +148,12 @@
         </header>
 
         <main class="flex-1 overflow-y-auto p-6" id="main-content">
-            <section id="view-agenda" class="block">
+            <div class="print-only mb-8 text-center">
+                <h1 class="text-2xl font-bold text-slate-900">Relatório Guia Med Connect</h1>
+                <p class="text-sm text-slate-500" id="print-date">Gerado em: --/--/----</p>
+            </div>
+
+            <section id="view-agenda" class="block no-print">
                 <div id="stock-alerts-container" class="hidden mb-6">
                     <h3 class="text-[10px] font-black text-red-500 uppercase tracking-widest mb-2 flex items-center gap-1">⚠️ Reposição Urgente</h3>
                     <div id="stock-alerts-list" class="flex flex-col gap-2"></div>
@@ -149,54 +166,61 @@
                 <div id="agenda-list" class="flex flex-col gap-4"></div>
             </section>
 
-            <section id="view-inventory" class="hidden">
+            <section id="view-inventory" class="hidden no-print">
                 <div class="mb-4 flex justify-between items-start">
                     <div>
                         <h2 class="text-xl font-semibold text-slate-800">Inventário</h2>
                         <p class="text-sm text-slate-500">Controle de estoque.</p>
                     </div>
-                    <button onclick="openAddModal()" class="touch-target bg-blue-600 text-white rounded-full px-4 py-2 font-medium shadow-md">➕ Novo</button>
+                    <button onclick="openAddModal()" class="touch-target bg-green-400 text-white rounded-full px-4 py-2 font-medium shadow-md">➕ Novo</button>
                 </div>
                 <div id="inventory-list" class="flex flex-col gap-3"></div>
             </section>
 
             <section id="view-history" class="hidden">
-                <div class="mb-6">
-                    <h2 class="text-xl font-semibold text-slate-800">Histórico</h2>
-                    <p class="text-sm text-slate-500">Relatórios de consumo e compras.</p>
+                <div class="mb-6 flex justify-between items-end no-print">
+                    <div>
+                        <h2 class="text-xl font-semibold text-slate-800">Histórico</h2>
+                        <p class="text-sm text-slate-500">Relatórios de consumo e compras.</p>
+                    </div>
+                    <button onclick="exportToPDF()" class="bg-slate-800 text-white text-[10px] font-bold py-2 px-4 rounded-lg flex items-center gap-1 hover:bg-black transition-colors">
+                        📄 Gerar PDF
+                    </button>
                 </div>
 
-                <div class="flex gap-2 mb-6 bg-slate-100 p-1 rounded-xl">
+                <div class="flex gap-2 mb-6 bg-slate-100 p-1 rounded-xl no-print">
                     <button onclick="switchHistorySubTab('consumption')" id="sub-tab-consumption" class="flex-1 py-2 text-xs font-bold rounded-lg bg-white shadow-sm text-blue-600 transition-all">Consumo</button>
                     <button onclick="switchHistorySubTab('purchase')" id="sub-tab-purchase" class="flex-1 py-2 text-xs font-bold rounded-lg text-slate-500 transition-all">Compras</button>
                 </div>
 
                 <div id="history-content-consumption" class="block">
-                    <div class="bg-blue-50 p-4 rounded-2xl mb-4">
+                    <div class="bg-blue-50 p-4 rounded-2xl mb-4 no-print">
                         <p class="text-[10px] font-black text-blue-600 uppercase mb-2">Resumo de Consumo</p>
                         <p class="text-xs text-slate-600">Registro detalhado dos medicamentos consumidos.</p>
                     </div>
+                    <h3 class="print-only text-lg font-bold border-b pb-2 mb-4">Relatório de Consumo Detalhado</h3>
                     <div id="consumption-report-list" class="flex flex-col gap-3"></div>
                 </div>
 
                 <div id="history-content-purchase" class="hidden">
-                    <div class="bg-orange-50 p-4 rounded-2xl mb-4">
+                    <div class="bg-orange-50 p-4 rounded-2xl mb-4 mt-6 no-print">
                         <p class="text-[10px] font-black text-orange-600 uppercase mb-2">Lista de Compras</p>
                         <p class="text-xs text-slate-600">Itens com estoque igual ou inferior a 5 unidades.</p>
                     </div>
+                    <h3 class="print-only text-lg font-bold border-b pb-2 mb-4 mt-8">Lista de Reposição / Compras</h3>
                     <div id="purchase-report-list" class="flex flex-col gap-3"></div>
                 </div>
             </section>
         </main>
 
-        <nav class="absolute bottom-0 w-full bg-white border-t border-slate-100 px-6 py-3 flex items-center z-20 pb-safe">
+        <nav class="absolute bottom-0 w-full bg-white border-t border-slate-100 px-6 py-3 flex items-center z-20 pb-safe no-print">
             <div class="w-1/3 flex justify-start">
                 <button onclick="switchTab('inventory')" id="btn-inventory" class="tab-btn text-slate-400 flex flex-col items-center gap-1 touch-target p-2">
                     <span class="text-2xl">💊</span><span class="text-xs font-medium">Estoque</span>
                 </button>
             </div>
             <div class="w-1/3 flex justify-center">
-                <button onclick="switchTab('agenda')" id="btn-agenda" class="tab-btn active text-blue-600 flex flex-col items-center gap-1 touch-target p-2">
+                <button onclick="goHome()" id="btn-agenda" class="tab-btn active text-blue-600 flex flex-col items-center gap-1 touch-target p-2">
                     <span class="text-2xl">📅</span><span class="text-xs font-medium">Agenda</span>
                 </button>
             </div>
@@ -207,19 +231,7 @@
             </div>
         </nav>
 
-        <!-- Modais e Alertas -->
-        <div id="interaction-warning" class="fixed inset-0 bg-slate-900/80 z-[100] hidden flex items-center justify-center p-6">
-            <div class="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl text-center">
-                <div class="w-16 h-16 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4 text-3xl">⚠️</div>
-                <h3 class="text-xl font-bold text-slate-800 mb-2">Risco de Interação!</h3>
-                <p id="interaction-message" class="text-sm text-slate-600 mb-6"></p>
-                <div class="flex flex-col gap-2">
-                    <button id="confirm-interaction" class="w-full bg-red-600 text-white rounded-xl py-3 font-bold">Estou ciente e desejo prosseguir</button>
-                    <button onclick="document.getElementById('interaction-warning').classList.add('hidden')" class="w-full bg-slate-100 text-slate-600 rounded-xl py-3 font-bold">Cancelar</button>
-                </div>
-            </div>
-        </div>
-
+        <!-- Modal -->
         <div id="modal-add" class="fixed inset-0 bg-slate-900/50 z-50 hidden flex flex-col justify-end">
             <div class="bg-white w-full max-w-md mx-auto rounded-t-3xl p-6 transform transition-transform translate-y-full overflow-y-auto max-h-[90vh]" id="modal-add-content">
                 <div class="flex justify-between items-center mb-6">
@@ -287,36 +299,76 @@
         const dayNames = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
         
         const DOSAGE_CATALOG = { 
-            'abafil': ['100mg', '200mg'], 'adolonta': ['50mg', '100mg'], 'aerius': ['5mg', '0.5mg/ml'],
-            'anador': ['500mg','1g'], 'alivium': ['100mg/ml', '400mg', '600mg'], 'amoxicilina': ['250mg', '500mg', '875mg'],
-            'amoxicilina + clavulanato': ['500mg+125mg', '875mg+125mg'], 'ansiolin': ['5mg', '10mg'], 'aspirina': ['100mg', '500mg'],
-            'atenolol': ['25mg', '50mg', '100mg'], 'atorvastatina': ['10mg', '20mg', '40mg', '80mg'], 'atrovent': ['0.25mg/ml', '20mcg'],
-            'ben-u-ron': ['500mg', '1g', '250mg'], 'bisoprolol': ['2.5mg', '5mg', '10mg'], 'brufen': ['200mg', '400mg', '600mg'],
-            'buscopan': ['10mg', '20mg/ml'], 'captopril': ['12.5mg', '25mg', '50mg'], 'claritine': ['10mg'],
-            'clonazepam': ['0.5mg', '2mg', '2.5mg/ml'], 'dafalgan': ['500mg', '1g'], 'daonil': ['5mg'],
-            'depakine': ['200mg', '500mg'], 'dexametasona': ['0.5mg', '1mg', '4mg'], 'diazepam': ['5mg', '10mg'],
-            'diclofenaco': ['50mg', '75mg', '100mg'], 'dipirona': ['500mg', '1g', '500mg/ml'], 'duloxetina': ['30mg', '60mg'],
-            'enalapril': ['5mg', '10mg', '20mg'], 'eszopiclona': ['2mg', '3mg'], 'fenobarbital': ['15mg', '50mg', '100mg'],
-            'fluoxetina': ['20mg'], 'furosemida': ['20mg', '40mg'], 'glifage': ['500mg', '850mg', '1g'],
-            'haloperidol': ['1mg', '5mg', '2mg/ml'], 'ibuprofeno': ['200mg', '400mg', '600mg'], 'insulina glargina': ['100UI/ml'],
-            'isordil': ['5mg', '10mg'], 'itraconaozol': ['100mg'], 'januvia': ['25mg', '50mg', '100mg'],
-            'lantus': ['100 U/ml'], 'levotiroxina': ['25mcg', '50mcg', '75mcg', '100mcg', '125mcg'], 'lexapro': ['10mg', '20mg'],
-            'lisinopril': ['5mg', '10mg', '20mg'], 'loratadina': ['10mg', '1mg/ml'], 'lorazepam': ['1mg', '2mg', '5mg'],
-            'losartan': ['25mg', '50mg', '100mg'], 'metformina': ['500mg', '850mg', '1000mg'], 'metoprolol': ['25mg', '50mg', '100mg'],
-            'nimesulida': ['100mg'], 'nolotil': ['575mg'], 'omeprazol': ['10mg', '20mg', '40mg'], 'oxocodona': ['10mg', '20mg'],
-            'pantoprazol': ['20mg', '40mg'], 'paracetamol': ['500mg', '750mg', '1g'], 'pregabalina': ['75mg', '150mg', '300mg'],
-            'prednisona': ['5mg', '20mg', '50mg'], 'quetiapina': ['25mg', '100mg', '200mg'], 'rivotril': ['0.5mg', '2mg', '2.5mg/ml'],
-            'rosuvastatina': ['5mg', '10mg', '20mg'], 'sertralina': ['25mg', '50mg', '100mg'], 'sinvastatina': ['10mg', '20mg', '40mg'],
-            'spironolactona': ['25mg', '100mg'], 'tadalafila': ['5mg', '20mg'], 'tramadol': ['50mg', '100mg'],
-            'valproato': ['250mg', '500mg'], 'valsartan': ['80mg', '160mg', '320mg'], 'venlafaxina': ['37.5mg', '75mg', '150mg'],
-            'victoza': ['6mg/ml'], 'warfarina': ['1mg', '2mg', '5mg'], 'xarelto': ['10mg', '15mg', '20mg'],
-            'zolpidem': ['5mg', '10mg'], 'zovirax': ['200mg', '400mg', '800mg']
+            'dipirona': ['500mg', '1g', '500mg/ml'],
+            'paracetamol': ['500mg', '750mg', '1g', '200mg/ml'],
+            'ibuprofeno': ['200mg', '400mg', '600mg'],
+            'abafil': ['100mg', '200mg'],
+            'abatenolo': ['25mg', '50mg', '100mg'],
+            'acido acetilsalicilico': ['100mg', '500mg'],
+            'alivium': ['100mg/ml', '400mg', '600mg'],
+            'alprazolam': ['0.25mg', '0.5mg', '1mg', '2mg'],
+            'amoxicilina': ['250mg', '500mg', '875mg'],
+            'amoxicilina + clavulanato': ['500mg+125mg', '875mg+125mg'],
+            'anlodipino': ['5mg', '10mg'],
+            'atenolol': ['25mg', '50mg', '100mg'],
+            'atorvastatina': ['10mg', '20mg', '40mg', '80mg'],
+            'azitromicina': ['500mg', '600mg', '900mg'],
+            'benegrip': ['Drágeas'],
+            'buscopan': ['10mg', 'compositum', 'gotas'],
+            'captopril': ['12.5mg', '25mg', '50mg'],
+            'cefalexina': ['250mg', '500mg'],
+            'cetoprofeno': ['50mg', '100mg', 'gotas'],
+            'citalopram': ['20mg', '40mg'],
+            'clonazepam': ['0.5mg', '2mg', '2.5mg/ml'],
+            'cloridrato de sertralina': ['25mg', '50mg', '100mg'],
+            'desloratadina': ['5mg', '0.5mg/ml'],
+            'dexametasona': ['0.5mg', '4mg', 'elixir'],
+            'diazepam': ['5mg', '10mg'],
+            'diclofenaco': ['50mg', '75mg', '100mg'],
+            'dorflex': ['Comprimidos'],
+            'enalapril': ['5mg', '10mg', '20mg'],
+            'escitalopram': ['10mg', '15mg', '20mg'],
+            'espiral': ['25mg', '50mg', '100mg'],
+            'fluoxetina': ['20mg'],
+            'furosemida': ['40mg'],
+            'glibenclamida': ['5mg'],
+            'glifage': ['500mg', '850mg', '1g'],
+            'hidroclorotiazida': ['25mg', '50mg'],
+            'insulina': ['NPH', 'Regular', 'Lispro'],
+            'isordil': ['5mg', '10mg'],
+            'levotiroxina': ['25mcg', '50mcg', '75mcg', '100mcg', '112mcg', '125mcg'],
+            'loratadina': ['10mg', '1mg/ml'],
+            'losartana': ['25mg', '50mg', '100mg'],
+            'metformina': ['500mg', '850mg', '1g'],
+            'metoprolol': ['25mg', '50mg', '100mg'],
+            'nimesulida': ['100mg', 'gotas'],
+            'novalgina': ['500mg', '1g'],
+            'omeprazol': ['10mg', '20mg', '40mg'],
+            'pantoprazol': ['20mg', '40mg'],
+            'paracetamol + codeina': ['500mg+30mg'],
+            'prednisona': ['5mg', '20mg', '40mg'],
+            'propranolol': ['10mg', '40mg', '80mg'],
+            'quetiapina': ['25mg', '100mg', '200mg'],
+            'rivotril': ['0.5mg', '2mg', 'gotas'],
+            'rosuvastatina': ['5mg', '10mg', '20mg'],
+            'selozok': ['25mg', '50mg', '100mg'],
+            'sinvastatina': ['10mg', '20mg', '40mg'],
+            'spironolactona': ['25mg', '50mg', '100mg'],
+            'tadalafila': ['5mg', '20mg'],
+            'tramadol': ['50mg', '100mg', 'gotas'],
+            'venlafaxina': ['37.5mg', '75mg', '150mg'],
+            'victoza': ['6mg/ml'],
+            'vitamina d': ['1000ui', '2000ui', '7000ui', '50000ui'],
+            'warfarina': ['5mg'],
+            'xarelto': ['10mg', '15mg', '20mg'],
+            'zolpidem': ['5mg', '10mg']
         };
 
         let state = {
             meds: JSON.parse(localStorage.getItem('medsafe_v15')) || [],
             selectedDate: new Date().toISOString().split('T')[0],
-            isAdmin: false
+            isAdmin: false,
+            activeSubTab: 'consumption'
         };
 
         const container = document.getElementById('calendar-container');
@@ -335,7 +387,67 @@
             setTimeout(() => { toast.classList.add('hidden'); toast.classList.remove('flex'); }, 3000);
         }
 
-        // ATUALIZAÇÃO: Login de Admin com Senha
+        window.handleNameInput = function() {
+            const input = document.getElementById('med-name');
+            const list = document.getElementById('autocomplete-list');
+            const val = input.value.toLowerCase();
+            list.innerHTML = '';
+            
+            if(!val) { list.classList.add('hidden'); return; }
+            
+            const matches = Object.keys(DOSAGE_CATALOG).filter(k => k.includes(val));
+            if(matches.length > 0) {
+                list.classList.remove('hidden');
+                matches.forEach(m => {
+                    const div = document.createElement('div');
+                    div.className = "suggestion-item";
+                    div.innerText = m.charAt(0).toUpperCase() + m.slice(1);
+                    div.onclick = () => {
+                        input.value = div.innerText;
+                        list.classList.add('hidden');
+                        window.handleDoseInput();
+                    };
+                    list.appendChild(div);
+                });
+            } else { list.classList.add('hidden'); }
+        };
+
+        window.handleDoseInput = function() {
+            const medName = document.getElementById('med-name').value.toLowerCase();
+            const input = document.getElementById('med-dose');
+            const list = document.getElementById('dose-autocomplete-list');
+            list.innerHTML = '';
+
+            if(DOSAGE_CATALOG[medName]) {
+                list.classList.remove('hidden');
+                DOSAGE_CATALOG[medName].forEach(d => {
+                    const div = document.createElement('div');
+                    div.className = "suggestion-item";
+                    div.innerText = d;
+                    div.onclick = () => {
+                        input.value = d;
+                        list.classList.add('hidden');
+                    };
+                    list.appendChild(div);
+                });
+            } else { list.classList.add('hidden'); }
+        };
+
+        window.setIntervalVal = function(val) {
+            document.getElementById('med-interval').value = val;
+            document.querySelectorAll('.int-btn').forEach(btn => {
+                if(btn.innerText === val + 'h') btn.classList.add('selected');
+                else btn.classList.remove('selected');
+            });
+        };
+
+        document.addEventListener('click', (e) => {
+            if(!e.target.closest('.relative')) {
+                document.getElementById('autocomplete-list').classList.add('hidden');
+                document.getElementById('dose-autocomplete-list').classList.add('hidden');
+            }
+        });
+
         function requestAdminAccess() {
             if(state.isAdmin) {
                 state.isAdmin = false;
@@ -344,14 +456,16 @@
                 renderInventory();
                 return;
             }
-            const pass = prompt("Digite a senha de administrador:");
-            if(pass === "admin123") {
+            const user = prompt("Usuário:");
+            if (user === null) return;
+            const pass = prompt("Senha:");
+            if(user === "admin" && pass === "guiamed2025") {
                 state.isAdmin = true;
                 document.getElementById('admin-badge').classList.remove('hidden');
                 showToast('Acesso administrador liberado', '🔐');
                 renderInventory();
-            } else if (pass !== null) {
-                showToast('Senha incorreta');
+            } else {
+                showToast('Dados incorretos');
             }
         }
 
@@ -360,24 +474,17 @@
             ribbon.innerHTML = '';
             const today = new Date();
             const todayStr = today.toISOString().split('T')[0];
-            
             for (let i = -7; i < 23; i++) {
                 const date = new Date();
                 date.setDate(today.getDate() + i);
                 const dateStr = date.toISOString().split('T')[0];
                 const isSelected = state.selectedDate === dateStr;
                 const isToday = dateStr === todayStr;
-                
                 const item = document.createElement('div');
                 item.className = `calendar-item ${isSelected ? 'selected' : ''} ${isToday ? 'is-today' : ''}`;
-                item.onclick = () => { 
-                    state.selectedDate = dateStr; 
-                    generateCalendar(); 
-                    renderAgenda(); 
-                };
+                item.onclick = () => { state.selectedDate = dateStr; generateCalendar(); renderAgenda(); };
                 item.innerHTML = `<span class="text-[10px] font-bold uppercase opacity-60">${dayNames[date.getDay()]}</span><span class="text-lg font-bold">${date.getDate()}</span>`;
                 ribbon.appendChild(item);
-                
                 if (isSelected) {
                     document.getElementById('current-month-display').innerText = monthNames[date.getMonth()];
                     document.getElementById('selected-date-label').innerText = date.toLocaleDateString('pt-PT', { weekday: 'long', day: 'numeric', month: 'long' });
@@ -393,6 +500,15 @@
             }
         }
 
+        function goHome() {
+            const todayStr = new Date().toISOString().split('T')[0];
+            state.selectedDate = todayStr;
+            switchTab('agenda');
+            generateCalendar();
+            renderAgenda();
+            scrollToToday();
+        }
+
         function renderAgenda() {
             const list = document.getElementById('agenda-list');
             list.innerHTML = '';
@@ -400,78 +516,134 @@
                 if(m.continuous) return state.selectedDate >= m.date;
                 return m.date === state.selectedDate;
             }).sort((a,b) => a.time.localeCompare(b.time));
-
-            if (daily.length === 0) { list.innerHTML = `<div class="text-center py-10 opacity-30"><p>Sem medicação para este dia.</p></div>`; return; }
             
+            if (daily.length === 0) { 
+                list.innerHTML = `<div class="text-center py-10 opacity-30"><p>Sem medicação para este dia.</p></div>`; 
+                return; 
+            }
+
             daily.forEach(med => {
-                const isTakenToday = med.continuous ? (med.takenDates && med.takenDates.some(d => d.date === state.selectedDate)) : med.taken;
-                const outOfStock = med.stock <= 0;
+                const isTakenToday = med.continuous 
+                    ? (med.takenDates && med.takenDates.some(d => d.date === state.selectedDate)) 
+                    : med.taken;
                 
+                const outOfStock = med.stock <= 0;
                 const card = document.createElement('div');
                 card.className = `p-4 rounded-2xl flex items-center justify-between border-2 transition-all ${isTakenToday ? 'bg-emerald-50 border-emerald-100 opacity-75' : 'bg-white border-slate-100 shadow-sm'}`;
-                
                 card.innerHTML = `
                     <div class="flex items-center gap-3">
                         <div class="h-10 w-10 bg-blue-50 rounded-lg flex items-center justify-center text-xl">${med.type}</div>
                         <div>
                             <div class="flex items-center gap-1">
                                 <h4 class="font-bold text-sm ${isTakenToday ? 'line-through text-emerald-800' : 'text-slate-800'}">${med.name}</h4>
-                                ${med.continuous ? '<span class="text-[9px] bg-blue-100 text-blue-600 px-1 rounded">Contínuo</span>' : ''}
                             </div>
                             <p class="text-[10px] font-bold text-blue-500 uppercase">${med.time} • ${med.dose}</p>
                         </div>
                     </div>
-                    <button 
-                        onclick="${outOfStock && !isTakenToday ? '' : `toggleTaken(${med.id})`}" 
-                        class="h-8 w-8 rounded-full border-2 flex items-center justify-center transition-all ${isTakenToday ? 'bg-emerald-500 border-emerald-500 text-white' : (outOfStock ? 'border-slate-100 bg-slate-50 cursor-not-allowed opacity-30' : 'border-slate-200 text-transparent')}"
-                    >✓</button>
+                    <button onclick="${outOfStock && !isTakenToday ? `showToast('Estoque esgotado para ${med.name}')` : `toggleTaken(${med.id})`}" 
+                            class="h-8 w-8 rounded-full border-2 flex items-center justify-center transition-all 
+                            ${isTakenToday ? 'bg-emerald-500 border-emerald-500 text-white' : (outOfStock ? 'border-red-200 bg-red-50 text-red-300' : 'border-slate-200 text-transparent')}">✓</button>
                 `;
                 list.appendChild(card);
             });
             checkStock();
         }
 
+        function renderInventory() {
+            const list = document.getElementById('inventory-list');
+            list.innerHTML = '';
+            state.meds.forEach(med => {
+                const card = document.createElement('div');
+                card.className = "bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex justify-between items-center";
+                card.innerHTML = `
+                    <div class="flex items-center gap-3">
+                        <div class="text-2xl">${med.type}</div>
+                        <div>
+                            <p class="font-bold text-sm text-slate-800">${med.name}</p>
+                            <p class="text-[10px] text-slate-500 uppercase font-bold">${med.dose}</p>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-4">
+                        <div class="text-right">
+                            <p class="text-[10px] font-black text-slate-400 uppercase tracking-tighter">Estoque</p>
+                            <p class="font-bold text-lg ${med.stock <= 5 ? 'text-red-500' : 'text-blue-600'}">${med.stock}</p>
+                        </div>
+                        ${state.isAdmin ? `
+                        <button onclick="deleteMed(${med.id})" class="h-10 w-10 bg-red-50 text-red-500 rounded-full flex items-center justify-center hover:bg-red-500 hover:text-white transition-all">
+                            🗑️
+                        </button>` : ''}
+                    </div>
+                `;
+                list.appendChild(card);
+            });
+        }
+
+        function deleteMed(id) {
+            if(!state.isAdmin) return;
+            state.meds = state.meds.filter(m => m.id !== id);
+            save();
+            showToast('Medicamento removido', '🗑️');
+        }
+
         function toggleTaken(id) {
             const today = new Date().toISOString().split('T')[0];
             if (state.selectedDate > today) { showToast('Não é possível marcar horários futuros'); return; }
-
-            const med = state.meds.find(m => m.id === id);
-            if (!med) return;
-            const key = `${med.name.toLowerCase()}-${med.dose.toLowerCase()}`;
+            
+            const medIndex = state.meds.findIndex(m => m.id === id);
+            if (medIndex === -1) return;
+            
+            const med = state.meds[medIndex];
             const timestamp = new Date().toLocaleString('pt-PT');
 
             if (med.continuous) {
                 if (!med.takenDates) med.takenDates = [];
                 const idx = med.takenDates.findIndex(d => d.date === state.selectedDate);
+                
                 if (idx === -1) {
                     med.takenDates.push({ date: state.selectedDate, log: timestamp });
-                    state.meds.filter(m => `${m.name.toLowerCase()}-${m.dose.toLowerCase()}` === key).forEach(m => m.stock--);
+                    med.stock--;
                 } else {
                     med.takenDates.splice(idx, 1);
-                    state.meds.filter(m => `${m.name.toLowerCase()}-${m.dose.toLowerCase()}` === key).forEach(m => m.stock++);
+                    med.stock++;
                 }
             } else {
                 if (!med.taken) {
-                    med.taken = true; med.takenAt = timestamp;
-                    state.meds.filter(m => `${m.name.toLowerCase()}-${m.dose.toLowerCase()}` === key).forEach(m => m.stock--);
+                    med.taken = true; 
+                    med.takenAt = timestamp;
+                    med.stock--;
                 } else {
-                    med.taken = false; med.takenAt = null;
-                    state.meds.filter(m => `${m.name.toLowerCase()}-${m.dose.toLowerCase()}` === key).forEach(m => m.stock++);
+                    med.taken = false; 
+                    med.takenAt = null;
+                    med.stock++;
                 }
             }
             save();
         }
 
-        function save() { localStorage.setItem('medsafe_v15', JSON.stringify(state.meds)); renderAgenda(); renderInventory(); }
+        function checkStock() {
+            const alertsList = document.getElementById('stock-alerts-list');
+            const alertsCont = document.getElementById('stock-alerts-container');
+            alertsList.innerHTML = '';
+            const lowStock = state.meds.filter(m => m.stock <= 5);
+            if(lowStock.length > 0) {
+                alertsCont.classList.remove('hidden');
+                lowStock.forEach(m => {
+                    const div = document.createElement('div');
+                    div.className = "bg-red-50 border-l-4 border-red-500 p-2 text-[10px] flex justify-between";
+                    div.innerHTML = `<span><strong>${m.name}</strong> (${m.dose})</span> <span class="font-bold">${m.stock} restando</span>`;
+                    alertsList.appendChild(div);
+                });
+            } else { alertsCont.classList.add('hidden'); }
+        }
 
-        // ATUALIZAÇÃO: Botão Agenda volta ao dia atual (Home Page)
+        function save() { 
+            localStorage.setItem('medsafe_v15', JSON.stringify(state.meds)); 
+            renderAgenda(); 
+            renderInventory(); 
+            renderHistory();
+        }
+
         function switchTab(tab) {
-            if (tab === 'agenda') {
-                state.selectedDate = new Date().toISOString().split('T')[0];
-                generateCalendar();
-                scrollToToday();
-            }
-
             document.querySelectorAll('section').forEach(s => s.classList.add('hidden'));
             document.getElementById(`view-${tab}`).classList.remove('hidden');
             document.querySelectorAll('.tab-btn').forEach(b => { 
@@ -479,28 +651,23 @@
                 b.classList.add('text-slate-400'); 
             });
             const targetBtn = document.getElementById(`btn-${tab}`);
-            if (targetBtn) { 
-                targetBtn.classList.remove('text-slate-400'); 
-                targetBtn.classList.add('text-blue-600', 'active'); 
-            }
+            if (targetBtn) { targetBtn.classList.add('text-blue-600', 'active'); }
+            
             if(tab === 'inventory') renderInventory();
             if(tab === 'history') renderHistory();
-            if(tab === 'agenda') renderAgenda();
+            if(tab === 'agenda') { generateCalendar(); renderAgenda(); }
         }
 
-        // CORREÇÃO: Função de Histórico
         function renderHistory() {
             const consumptionList = document.getElementById('consumption-report-list');
             const purchaseList = document.getElementById('purchase-report-list');
-            consumptionList.innerHTML = '';
-            purchaseList.innerHTML = '';
-
-            // Renderiza Consumo
+            consumptionList.innerHTML = ''; purchaseList.innerHTML = '';
+            
             const logs = [];
             state.meds.forEach(m => {
                 if (m.continuous && m.takenDates) {
                     m.takenDates.forEach(td => logs.push({ name: m.name, dose: m.dose, log: td.log }));
-                } else if (m.taken && m.takenAt) {
+                } else if (!m.continuous && m.taken && m.takenAt) {
                     logs.push({ name: m.name, dose: m.dose, log: m.takenAt });
                 }
             });
@@ -516,19 +683,11 @@
                 });
             }
 
-            // Renderiza Compras
             const lowStock = state.meds.filter(m => m.stock <= 5);
-            const uniqueLowStock = [];
-            const keys = new Set();
-            lowStock.forEach(m => {
-                const key = `${m.name}-${m.dose}`;
-                if(!keys.has(key)) { uniqueLowStock.push(m); keys.add(key); }
-            });
-
-            if (uniqueLowStock.length === 0) {
+            if (lowStock.length === 0) {
                 purchaseList.innerHTML = '<p class="text-center text-slate-400 text-xs py-4">Estoque em dia!</p>';
             } else {
-                uniqueLowStock.forEach(m => {
+                lowStock.forEach(m => {
                     const item = document.createElement('div');
                     item.className = "bg-white p-3 rounded-xl border border-slate-100 flex justify-between items-center";
                     item.innerHTML = `<div><p class="font-bold text-xs">${m.name}</p><p class="text-[9px] text-slate-400">${m.dose}</p></div><div class="text-right"><p class="text-[9px] text-orange-600 font-bold">Estoque: ${m.stock}</p></div>`;
@@ -538,153 +697,58 @@
         }
 
         function switchHistorySubTab(tab) {
+            state.activeSubTab = tab;
             document.getElementById('history-content-consumption').classList.add('hidden');
             document.getElementById('history-content-purchase').classList.add('hidden');
-            document.getElementById('sub-tab-consumption').classList.remove('bg-white', 'shadow-sm', 'text-blue-600');
-            document.getElementById('sub-tab-consumption').classList.add('text-slate-500');
-            document.getElementById('sub-tab-purchase').classList.remove('bg-white', 'shadow-sm', 'text-blue-600');
-            document.getElementById('sub-tab-purchase').classList.add('text-slate-500');
-
+            document.getElementById('sub-tab-consumption').className = "flex-1 py-2 text-xs font-bold rounded-lg text-slate-500 transition-all";
+            document.getElementById('sub-tab-purchase').className = "flex-1 py-2 text-xs font-bold rounded-lg text-slate-500 transition-all";
+            
             document.getElementById(`history-content-${tab}`).classList.remove('hidden');
-            document.getElementById(`sub-tab-${tab}`).classList.add('bg-white', 'shadow-sm', 'text-blue-600');
-            document.getElementById(`sub-tab-${tab}`).classList.remove('text-slate-500');
+            document.getElementById(`sub-tab-${tab}`).className = "flex-1 py-2 text-xs font-bold rounded-lg bg-white shadow-sm text-blue-600 transition-all";
         }
 
-        // Funções Auxiliares (Preenchimento, Modal, etc)
-        function handleNameInput() {
-            const val = document.getElementById('med-name').value.toLowerCase();
-            const list = document.getElementById('autocomplete-list');
-            list.innerHTML = '';
-            if (val.length < 1) { list.classList.add('hidden'); return; }
-            const matches = Object.keys(DOSAGE_CATALOG).filter(k => k.startsWith(val));
-            if (matches.length > 0) {
-                list.classList.remove('hidden');
-                matches.forEach(m => {
-                    const item = document.createElement('div');
-                    item.className = 'suggestion-item font-medium';
-                    item.innerText = m.charAt(0).toUpperCase() + m.slice(1);
-                    item.onclick = () => { document.getElementById('med-name').value = item.innerText; list.classList.add('hidden'); handleDoseInput(); };
-                    list.appendChild(item);
-                });
-            } else list.classList.add('hidden');
+        function exportToPDF() {
+            document.getElementById('print-date').innerText = `Gerado em: ${new Date().toLocaleString('pt-PT')}`;
+            window.print();
         }
 
-        function handleDoseInput() {
-            const medName = document.getElementById('med-name').value.toLowerCase(), doseVal = document.getElementById('med-dose').value.toLowerCase(), list = document.getElementById('dose-autocomplete-list');
-            list.innerHTML = '';
-            if (!DOSAGE_CATALOG[medName]) { list.classList.add('hidden'); return; }
-            const matches = DOSAGE_CATALOG[medName].filter(d => d.toLowerCase().startsWith(doseVal));
-            if (matches.length > 0) {
-                list.classList.remove('hidden');
-                matches.forEach(d => {
-                    const item = document.createElement('div');
-                    item.className = 'suggestion-item font-medium';
-                    item.innerText = d;
-                    item.onclick = () => { document.getElementById('med-dose').value = d; list.classList.add('hidden'); };
-                    list.appendChild(item);
-                });
-            } else list.classList.add('hidden');
+        function openAddModal() {
+            const modal = document.getElementById('modal-add');
+            modal.classList.remove('hidden');
+            setTimeout(() => document.getElementById('modal-add-content').classList.remove('translate-y-full'), 10);
+            document.getElementById('med-start-date').value = state.selectedDate;
         }
 
-        function setIntervalVal(h) { 
-            document.getElementById('med-interval').value = h; 
-            document.querySelectorAll('.int-btn').forEach(b => b.classList.remove('selected')); 
-            event.target.classList.add('selected'); 
+        function closeAddModal() {
+            document.getElementById('modal-add-content').classList.add('translate-y-full');
+            setTimeout(() => document.getElementById('modal-add').classList.add('hidden'), 300);
         }
 
         document.getElementById('form-add-med').onsubmit = (e) => {
             e.preventDefault();
-            const name = document.getElementById('med-name').value;
-            const dose = document.getElementById('med-dose').value;
-            const time = document.getElementById('med-time').value;
-            const type = document.getElementById('med-type').value;
-            const interval = parseInt(document.getElementById('med-interval').value);
-            const continuous = document.getElementById('med-continuous').checked;
-            const stock = parseInt(document.getElementById('med-stock').value || 999);
-            const startDate = document.getElementById('med-start-date').value || state.selectedDate;
-
-            processSaving(name, dose, time, type, interval, continuous, stock, startDate);
+            const newMed = {
+                id: Date.now(),
+                name: document.getElementById('med-name').value,
+                dose: document.getElementById('med-dose').value,
+                type: document.getElementById('med-type').value,
+                date: document.getElementById('med-start-date').value,
+                time: document.getElementById('med-time').value,
+                continuous: document.getElementById('med-continuous').checked,
+                stock: parseInt(document.getElementById('med-stock').value) || 0,
+                interval: parseInt(document.getElementById('med-interval').value) || 0,
+                taken: false
+            };
+            state.meds.push(newMed);
+            save();
+            closeAddModal();
             e.target.reset();
+            document.querySelectorAll('.int-btn').forEach(b => b.classList.remove('selected'));
         };
 
-        function processSaving(name, dose, time, type, interval, continuous, stock, startDate) {
-            let times = [time];
-            if (interval > 0 && interval < 24) { 
-                let curr = time; 
-                while(true) { 
-                    let [h, m] = curr.split(':').map(Number); 
-                    h += interval; if (h >= 24) break; 
-                    curr = `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`; 
-                    times.push(curr); 
-                } 
-            }
-            
-            const key = `${name.toLowerCase()}-${dose.toLowerCase()}`, existing = state.meds.find(m => `${m.name.toLowerCase()}-${m.dose.toLowerCase()}` === key);
-            let totalStock = (existing ? existing.stock : 0) + stock;
-            
-            times.forEach(t => { 
-                state.meds.push({ 
-                    id: Date.now() + Math.random(), 
-                    name, dose, type, time: t, 
-                    date: startDate, 
-                    taken: false, continuous, 
-                    takenDates: [], stock: totalStock 
-                }); 
-            });
-            state.meds.filter(m => `${m.name.toLowerCase()}-${m.dose.toLowerCase()}` === key).forEach(m => m.stock = totalStock);
-            save(); closeAddModal();
-        }
-
-        function renderInventory() {
-            const list = document.getElementById('inventory-list'); list.innerHTML = ''; const grouped = {};
-            state.meds.forEach(m => { const key = `${m.name.toLowerCase()}-${m.dose.toLowerCase()}`; if (!grouped[key]) grouped[key] = { ...m }; else grouped[key].stock = Math.max(grouped[key].stock, m.stock); });
-            Object.values(grouped).forEach(item => {
-                const card = document.createElement('div');
-                card.className = "bg-white p-4 rounded-2xl border border-slate-100 flex items-center justify-between";
-                card.innerHTML = `
-                    <div class="flex items-center gap-3">
-                        <div class="text-xl">${item.type}</div>
-                        <div>
-                            <p class="font-bold text-slate-800 text-sm">${item.name}</p>
-                            <p class="text-[10px] text-slate-400 font-bold uppercase">${item.dose} • Stock: ${item.stock}</p>
-                        </div>
-                    </div>
-                    <button onclick="removeGroup('${item.name}', '${item.dose}')" class="text-slate-300 hover:text-red-500 transition-colors">🗑️</button>`;
-                list.appendChild(card);
-            });
-        }
-
-        function removeGroup(name, dose) { 
-            if(!state.isAdmin && !confirm(`Deseja remover ${name}?`)) return;
-            const key = `${name.toLowerCase()}-${dose.toLowerCase()}`; 
-            state.meds = state.meds.filter(m => `${m.name.toLowerCase()}-${m.dose.toLowerCase()}` !== key); 
-            save(); 
-        }
-
-        function checkStock() {
-            const container = document.getElementById('stock-alerts-container'), list = document.getElementById('stock-alerts-list');
-            list.innerHTML = '';
-            const alerts = [...new Set(state.meds.filter(m => m.stock <= 2).map(m => `${m.name} (${m.dose})`))];
-            if (alerts.length > 0) { 
-                container.classList.remove('hidden'); 
-                alerts.forEach(a => { 
-                    const d = document.createElement('div'); d.className = 'bg-red-50 p-2 rounded-lg text-xs font-bold text-red-700 border border-red-100'; 
-                    d.innerText = `Baixo estoque: ${a}`; list.appendChild(d); 
-                }); 
-            } else container.classList.add('hidden');
-        }
-
-        function openAddModal() { 
-            document.getElementById('med-start-date').value = state.selectedDate;
-            document.getElementById('modal-add').classList.remove('hidden'); 
-            setTimeout(() => document.getElementById('modal-add-content').classList.remove('translate-y-full'), 10); 
-        }
-        function closeAddModal() { document.getElementById('modal-add-content').classList.add('translate-y-full'); setTimeout(() => document.getElementById('modal-add').classList.add('hidden'), 300); }
-
-        window.onload = () => { 
-            generateCalendar(); 
-            renderAgenda(); 
+        window.onload = () => {
+            generateCalendar();
             scrollToToday();
+            renderAgenda();
         };
     </script>
 </body>
